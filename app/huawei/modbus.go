@@ -118,8 +118,18 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 	// established before they answer the first request reliably.
 	time.Sleep(1 * time.Second)
 
-	client := modbus.NewClient(handler)
+	return m.read(modbus.NewClient(handler))
+}
 
+// registerReader is the subset of modbus.Client used for reading holding
+// registers. It lets read() be unit-tested with a fake reader.
+type registerReader interface {
+	ReadHoldingRegisters(address, quantity uint16) ([]byte, error)
+}
+
+// read decodes a full status snapshot from a register reader. It is separated
+// from Fetch so it can be unit-tested without a live inverter.
+func (m *ModbusBackend) read(client registerReader) (InverterStatus, error) {
 	status := InverterStatus{}
 
 	// Model and serial rarely change; read them once and cache.
@@ -166,10 +176,9 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 	status.DailyYield = float64(binary.BigEndian.Uint32(yield[dailyOff:dailyOff+4])) / 100
 
 	// Meter power is best-effort; absent when no Smart Power Sensor is installed.
-	// Convention (confirmed on this install): positive = importing from grid,
-	// negative = exporting. Proven by physics: the meter read exceeded the
-	// inverter's AC output while the battery was idle, which is only possible
-	// for import.
+	// Convention (confirmed on this install): positive = exporting to grid,
+	// negative = importing. Verified against FusionSolar, the meter power factor
+	// sign, and the daily import/export energy counters with a clean meter read.
 	if meter, err := readRegisters(client, regMeterPower, 2); err == nil {
 		raw := int32(binary.BigEndian.Uint32(meter[0:4]))
 		if raw == invalidI32 {
@@ -177,8 +186,8 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 		} else {
 			v := float64(raw)
 			status.GridPower = &v
-			// House consumption = inverter AC output + grid import.
-			consumption := status.ActivePower + v
+			// House consumption = inverter AC output - grid export.
+			consumption := status.ActivePower - v
 			status.Consumption = &consumption
 		}
 	} else {
@@ -209,7 +218,7 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 // fetchDetails builds the extended diagnostics. The inverter AC/DC section is
 // derived from the already-read core block; PV strings, meter and battery-day
 // blocks are best-effort and omitted when unavailable.
-func (m *ModbusBackend) fetchDetails(client modbus.Client, core []byte) *Details {
+func (m *ModbusBackend) fetchDetails(client registerReader, core []byte) *Details {
 	d := &Details{}
 
 	// Inverter AC/DC detail from the core block (base 32064).
@@ -285,7 +294,7 @@ func i16(b []byte, off int) float64 { return float64(int16(binary.BigEndian.Uint
 func u32(b []byte, off int) float64 { return float64(binary.BigEndian.Uint32(b[off : off+4])) }
 func i32(b []byte, off int) float64 { return float64(int32(binary.BigEndian.Uint32(b[off : off+4]))) }
 
-func readRegisters(client modbus.Client, address, quantity uint16) ([]byte, error) {
+func readRegisters(client registerReader, address, quantity uint16) ([]byte, error) {
 	results, err := client.ReadHoldingRegisters(address, quantity)
 	if err != nil {
 		return nil, err
@@ -296,7 +305,7 @@ func readRegisters(client modbus.Client, address, quantity uint16) ([]byte, erro
 	return results, nil
 }
 
-func readString(client modbus.Client, address, quantity uint16) (string, error) {
+func readString(client registerReader, address, quantity uint16) (string, error) {
 	b, err := readRegisters(client, address, quantity)
 	if err != nil {
 		return "", err

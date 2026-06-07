@@ -23,11 +23,11 @@ type InverterStatus struct {
 	TotalYield float64 `json:"totalYield"`
 
 	// GridPower is the meter active power in watts.
-	// Positive = importing from grid, negative = exporting to grid.
+	// Positive = exporting to grid, negative = importing from grid.
 	GridPower *float64 `json:"gridPower,omitempty"`
 	// Consumption is the estimated house load in watts. It is only available
 	// when a grid meter (Smart Power Sensor) is present and is computed as
-	// activePower + gridPower.
+	// activePower - gridPower.
 	Consumption *float64 `json:"consumption,omitempty"`
 	// Temperature is the inverter internal temperature in °C.
 	Temperature *float64 `json:"temperature,omitempty"`
