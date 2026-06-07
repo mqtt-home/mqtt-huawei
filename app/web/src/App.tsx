@@ -38,10 +38,10 @@ export function App() {
   const online = (status?.connected ?? false) && isConnected;
   const pv = status?.pvPower ?? 0;
 
-  // Grid power: positive = exporting to grid, negative = importing.
+  // Grid power: positive = importing from grid, negative = exporting.
   const grid = status?.gridPower;
   const gridValue = grid === undefined ? '—' : formatPower(Math.abs(grid));
-  const gridSub = grid === undefined ? 'no meter' : grid >= 0 ? 'exporting' : 'importing';
+  const gridSub = grid === undefined ? 'no meter' : grid >= 0 ? 'importing' : 'exporting';
 
   const battery = status?.battery;
 

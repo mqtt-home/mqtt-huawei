@@ -138,7 +138,7 @@ You can use environment variables in the config file:
   "activePower": 4180,
   "dailyYield": 12.34,
   "totalYield": 8765.43,
-  "gridPower": 3200,
+  "gridPower": -3200,
   "consumption": 980,
   "temperature": 38.5,
   "battery": {
@@ -155,8 +155,8 @@ You can use environment variables in the config file:
 | `activePower` | W | Inverter AC output (after battery charge/discharge) |
 | `dailyYield` | kWh | Energy produced today |
 | `totalYield` | kWh | Lifetime accumulated energy |
-| `gridPower` | W | Meter active power: positive = export, negative = import (Modbus + Smart Power Sensor only) |
-| `consumption` | W | Estimated house load = `activePower − gridPower` (meter required) |
+| `gridPower` | W | Meter active power: positive = import, negative = export (Modbus + Smart Power Sensor only) |
+| `consumption` | W | Estimated house load = `activePower + gridPower` (meter required) |
 | `temperature` | °C | Inverter internal temperature (Modbus only) |
 | `battery.soc` | % | State of charge (battery only) |
 | `battery.power` | W | Positive = charging, negative = discharging |

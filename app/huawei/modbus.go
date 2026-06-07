@@ -166,7 +166,10 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 	status.DailyYield = float64(binary.BigEndian.Uint32(yield[dailyOff:dailyOff+4])) / 100
 
 	// Meter power is best-effort; absent when no Smart Power Sensor is installed.
-	// Convention: positive = exporting to grid, negative = importing.
+	// Convention (confirmed on this install): positive = importing from grid,
+	// negative = exporting. Proven by physics: the meter read exceeded the
+	// inverter's AC output while the battery was idle, which is only possible
+	// for import.
 	if meter, err := readRegisters(client, regMeterPower, 2); err == nil {
 		raw := int32(binary.BigEndian.Uint32(meter[0:4]))
 		if raw == invalidI32 {
@@ -174,8 +177,8 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 		} else {
 			v := float64(raw)
 			status.GridPower = &v
-			// House consumption = inverter AC output - grid export.
-			consumption := status.ActivePower - v
+			// House consumption = inverter AC output + grid import.
+			consumption := status.ActivePower + v
 			status.Consumption = &consumption
 		}
 	} else {

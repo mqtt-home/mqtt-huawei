@@ -59,8 +59,8 @@ export interface InverterStatus {
   activePower: number; // watts (AC active power / inverter output)
   dailyYield: number;  // kWh today
   totalYield: number;  // kWh lifetime
-  gridPower?: number;  // watts, +export / -import
-  consumption?: number; // watts, estimated house load = activePower - gridPower (meter required)
+  gridPower?: number;  // watts, +import / -export
+  consumption?: number; // watts, estimated house load = activePower + gridPower (meter required)
   temperature?: number; // °C
   battery?: BatteryStatus;
   details?: Details;
