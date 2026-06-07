@@ -30,6 +30,16 @@ const (
 	regPVStrings    = 32016 // PV1 V/I, PV2 V/I (4 registers)
 	regMeterDetail  = 37101 // meter phase V/I, freq, PF, energy (block)
 	regBatteryDayCh = 37784 // U32, gain 100, kWh (today charge); +2 = today discharge
+
+	regMeterActivePowerAddr = 37113 // for sentinel-checking within the detail block
+)
+
+// Sentinel values SUN2000 registers return when a measurement is unavailable
+// (e.g. the Smart Power Sensor is momentarily not reporting). Reading these as
+// real numbers yields nonsense like 214748364.7 V.
+const (
+	invalidU16 = uint16(0xFFFF)    // 65535
+	invalidI32 = int32(0x7FFFFFFF) // 2147483647
 )
 
 // deviceStates maps the most common SUN2000 status codes to human strings.
@@ -158,22 +168,31 @@ func (m *ModbusBackend) Fetch() (InverterStatus, error) {
 	// Meter power is best-effort; absent when no Smart Power Sensor is installed.
 	// Convention: positive = importing from grid, negative = exporting.
 	if meter, err := readRegisters(client, regMeterPower, 2); err == nil {
-		v := float64(int32(binary.BigEndian.Uint32(meter[0:4])))
-		status.GridPower = &v
-		// House consumption = inverter AC output + grid import.
-		consumption := status.ActivePower + v
-		status.Consumption = &consumption
+		raw := int32(binary.BigEndian.Uint32(meter[0:4]))
+		if raw == invalidI32 {
+			logger.Debug("Meter reports invalid value, skipping grid power")
+		} else {
+			v := float64(raw)
+			status.GridPower = &v
+			// House consumption = inverter AC output + grid import.
+			consumption := status.ActivePower + v
+			status.Consumption = &consumption
+		}
 	} else {
 		logger.Debug("No meter reading", "error", err)
 	}
 
 	// Battery block 37760..37766 is best-effort; absent when no storage exists.
 	if bat, err := readRegisters(client, regBatterySOC, 7); err == nil {
-		soc := float64(binary.BigEndian.Uint16(bat[0:2])) / 10
+		socRaw := binary.BigEndian.Uint16(bat[0:2])
 		powOff := wordOffset(regBatteryPow, regBatterySOC)
-		power := float64(int32(binary.BigEndian.Uint32(bat[powOff : powOff+4])))
-		if soc > 0 || power != 0 {
-			status.Battery = &BatteryStatus{SOC: soc, Power: power}
+		powRaw := int32(binary.BigEndian.Uint32(bat[powOff : powOff+4]))
+		if socRaw != invalidU16 && powRaw != invalidI32 {
+			soc := float64(socRaw) / 10
+			power := float64(powRaw)
+			if soc > 0 || power != 0 {
+				status.Battery = &BatteryStatus{SOC: soc, Power: power}
+			}
 		}
 	} else {
 		logger.Debug("No battery reading", "error", err)
@@ -218,20 +237,25 @@ func (m *ModbusBackend) fetchDetails(client modbus.Client, core []byte) *Details
 		}
 	}
 
-	// Meter detail block (best-effort): 37101..37122.
+	// Meter detail block (best-effort): 37101..37122. Skip when the meter
+	// reports the invalid sentinel (Smart Power Sensor not reporting).
 	if mb, err := readRegisters(client, regMeterDetail, 22); err == nil {
 		mo := func(addr uint16) int { return wordOffset(addr, regMeterDetail) }
-		d.Meter = &MeterDetail{
-			PhaseAVoltage:  i32(mb, mo(37101)) / 10,
-			PhaseBVoltage:  i32(mb, mo(37103)) / 10,
-			PhaseCVoltage:  i32(mb, mo(37105)) / 10,
-			PhaseACurrent:  i32(mb, mo(37107)) / 100,
-			PhaseBCurrent:  i32(mb, mo(37109)) / 100,
-			PhaseCCurrent:  i32(mb, mo(37111)) / 100,
-			PowerFactor:    i16(mb, mo(37117)) / 1000,
-			Frequency:      i16(mb, mo(37118)) / 100,
-			ImportedEnergy: i32(mb, mo(37119)) / 100,
-			ExportedEnergy: i32(mb, mo(37121)) / 100,
+		if int32(binary.BigEndian.Uint32(mb[mo(regMeterActivePowerAddr):mo(regMeterActivePowerAddr)+4])) == invalidI32 {
+			logger.Debug("Meter detail reports invalid value, skipping")
+		} else {
+			d.Meter = &MeterDetail{
+				PhaseAVoltage:  i32(mb, mo(37101)) / 10,
+				PhaseBVoltage:  i32(mb, mo(37103)) / 10,
+				PhaseCVoltage:  i32(mb, mo(37105)) / 10,
+				PhaseACurrent:  i32(mb, mo(37107)) / 100,
+				PhaseBCurrent:  i32(mb, mo(37109)) / 100,
+				PhaseCCurrent:  i32(mb, mo(37111)) / 100,
+				PowerFactor:    i16(mb, mo(37117)) / 1000,
+				Frequency:      i16(mb, mo(37118)) / 100,
+				ImportedEnergy: i32(mb, mo(37119)) / 100,
+				ExportedEnergy: i32(mb, mo(37121)) / 100,
+			}
 		}
 	}
 
