@@ -1,0 +1,17 @@
+# syntax=docker/dockerfile:1.17
+
+# Final stage - only for the binary
+FROM gcr.io/distroless/static:nonroot
+
+WORKDIR /
+
+# Copy the pre-built binary from GoReleaser
+COPY mqtt-huawei /mqtt-huawei
+
+# Copy the frontend build files
+COPY web/dist/ /web/dist/
+
+# Use non-root user (distroless already provides this)
+USER nonroot:nonroot
+
+ENTRYPOINT ["/mqtt-huawei", "/var/lib/mqtt-huawei/config.json"]

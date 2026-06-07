@@ -1,0 +1,29 @@
+{
+  "mqtt": {
+    "url": "tcp://localhost:1883",
+    "topic": "home/huawei",
+    "qos": 2,
+    "retain": true
+  },
+  "huawei": {
+    "backend": "modbus",
+    "polling_interval": 30,
+    "modbus": {
+      "host": "192.168.1.100",
+      "port": 502,
+      "unit_id": 1,
+      "timeout": 10
+    },
+    "fusionsolar": {
+      "base_url": "https://eu5.fusionsolar.huawei.com",
+      "username": "${FUSIONSOLAR_USER}",
+      "system_code": "${FUSIONSOLAR_CODE}",
+      "station_code": ""
+    }
+  },
+  "web": {
+    "enabled": true,
+    "port": 8080
+  },
+  "loglevel": "info"
+}

@@ -1,0 +1,15 @@
+config.json
+config-auth.json
+.metadata
+.recommenders
+.sonarlint
+.settings
+.DS_Store
+
+.idea
+*.iml
+
+dist/
+
+node_modules/
+app/build
