@@ -8,7 +8,7 @@ require (
 	github.com/grid-x/modbus v0.0.0-20240503115206-582f2ab60a18
 	github.com/philipparndt/go-logger v1.8.0
 	github.com/philipparndt/go-logger/chi v0.0.0-20260418052559-78574db4574d
-	github.com/philipparndt/mqtt-gateway v1.6.0
+	github.com/philipparndt/mqtt-gateway v1.11.0
 )
 
 require (
